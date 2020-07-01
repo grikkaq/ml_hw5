@@ -10,6 +10,7 @@ from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 from sklearn.feature_selection import SelectKBest, SelectFromModel, mutual_info_classif
 from sklearn.svm import LinearSVC
 from sklearn.ensemble import ExtraTreesClassifier
+from sklearn.neighbors import LocalOutlierFactor
 
 
 def set_types(data):
@@ -95,24 +96,10 @@ def noise_outlier_variance(df, k):
     df = df.dropna(axis=0)
     return df
 
-def noise_outliers_grubbs_test(df, y):
-    '''Remove outliers based on grubbs test.
-    :return: the data and labels after removing outliers
-    '''
-    new_data = df.copy()
-    new_labels = y.copy()
-    numeric_data = df.select_dtypes(exclude=['category']).copy()
-    for feature in df.keys():
-        if len(feature.split('-')) > 1:
-            numeric_data.drop(labels=feature, axis=1, inplace=True)
-
-    for feature in numeric_data:
-        indices = grubbs.two_sided_test_indices(numeric_data[feature])
-        if indices != []:
-            new_data.drop(new_data.index[indices], inplace=True)
-            new_labels.drop(new_labels.index[indices], inplace=True)
-            numeric_data.drop(numeric_data.index[indices], inplace=True)
-    return new_data, new_labels
+def remove_noise_outliers(df, y):
+    outlier_clf = LocalOutlierFactor(n_neighbors=20)
+    mask = [True if item == 1 else False for item in outlier_clf.fit_predict(df)]
+    return df.iloc[mask, :]
 
 
 '''    Scaling      '''
@@ -239,27 +226,25 @@ def preprocess():
     X, y = elections_df[best_features],elections_df[label]
 
     X_train, y_train, X_valid, y_valid, X_test, y_test = split_dataset(X,y)
-    print(X_train.shape, y_train.shape, X_valid.shape, y_valid.shape, X_test.shape, y_test.shape)
     #   3: Data preparation
     #   3.1 Imputing
     X_train = closet_fit(X_train)
     X_test = closet_fit(X_test)
     X_valid = closet_fit(X_valid)
-    print(X_train.shape, y_train.shape, X_valid.shape, y_valid.shape, X_test.shape, y_test.shape)
 
+    print('cat to num')
     X_train = categorical_to_numerical(X_train, y_train)
     X_test = categorical_to_numerical(X_test, y_test)
     X_valid = categorical_to_numerical(X_valid, y_valid)
-    print('cat to num')
-    print(X_train.shape, y_train.shape, X_valid.shape, y_valid.shape, X_test.shape, y_test.shape)
 
     #   3.2: Data Cleansing
+    print(remove_noise_outliers(X_train, y_train))
+    print(remove_noise_outliers(X_test, y_test))
+    print(remove_noise_outliers(X_valid, y_valid))
 
-    X_train, y_train = noise_outliers_grubbs_test(X_train, y_train)
-    X_test, y_test = noise_outliers_grubbs_test(X_test, y_test)
-    X_valid, y_valid = noise_outliers_grubbs_test(X_valid, y_valid)
-    print('outliers')
-    print(X_train.shape, y_train.shape, X_valid.shape, y_valid.shape, X_test.shape, y_test.shape)
+    X_train = remove_noise_outliers(X_train, y_train)
+    X_test = remove_noise_outliers(X_test, y_test)
+    X_valid = remove_noise_outliers(X_valid, y_valid)
 
     #   3.3: Normalization (scaling)
     X_train = scale_data(X_train)
@@ -279,3 +264,5 @@ def preprocess():
     X_test.to_csv('x_test.csv', index=False)
     y_test.to_csv('y_test.csv', index=False)
 
+if __name__ == '__main__':
+    preprocess()
