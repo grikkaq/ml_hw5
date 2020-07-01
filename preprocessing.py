@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from pandas import read_csv
-from outliers import smirnov_grubbs as grubbs
 from scipy.stats import kurtosis
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
@@ -17,6 +16,7 @@ def set_types(data):
     # Set the types for all the features and split to features and labels.
     object_features = data.keys()[data.dtypes.map(lambda x: x == 'object')]
     for f in object_features:
+        print(f)
         data[f] = data[f].astype("category")
 
 
@@ -27,15 +27,14 @@ def split_dataset(X, y):
     return X_train, y_train, X_valid, y_valid, X_test, y_test
 
 
-def categorical_to_numerical(df, y):
+def categorical_to_numerical(df, y=None):
     # Transform feature of two possible values to boolean feature.
     # Other (categorical) features except label are transformed into one-hot representation.
     df = df.reset_index(drop=True)
     categorical_features = list(df.select_dtypes(include='category').keys())
 
-    le = LabelEncoder()
-    y = le.fit_transform(y)
     for f in categorical_features:
+        print(f)
         unique_val = np.unique(df[f])
         if len(unique_val) == 2:
             df[f] = df[f].apply(lambda item: int(item == unique_val[0]))
@@ -96,10 +95,10 @@ def noise_outlier_variance(df, k):
     df = df.dropna(axis=0)
     return df
 
-def remove_noise_outliers(df, y):
+def remove_noise_outliers(df, y = None):
     outlier_clf = LocalOutlierFactor(n_neighbors=20)
-    mask = [True if item == 1 else False for item in outlier_clf.fit_predict(df)]
-    return df.iloc[mask, :]
+    mask = outlier_clf.fit_predict(df) == 1
+    return df.iloc[mask, :], None if y is None else y[mask]
 
 
 '''    Scaling      '''
@@ -208,7 +207,7 @@ def select_features():
 #################################
 #       Script starts here      #
 #################################
-def preprocess():
+def preprocess_training_data():
     label='Vote'
     best_features = [ "Yearly_IncomeK", "Number_of_differnt_parties_voted_for",
                       "Political_interest_Total_Score", "Avg_Satisfaction_with_previous_vote",
@@ -238,13 +237,9 @@ def preprocess():
     X_valid = categorical_to_numerical(X_valid, y_valid)
 
     #   3.2: Data Cleansing
-    print(remove_noise_outliers(X_train, y_train))
-    print(remove_noise_outliers(X_test, y_test))
-    print(remove_noise_outliers(X_valid, y_valid))
-
-    X_train = remove_noise_outliers(X_train, y_train)
-    X_test = remove_noise_outliers(X_test, y_test)
-    X_valid = remove_noise_outliers(X_valid, y_valid)
+    X_train, y_train = remove_noise_outliers(X_train, y_train)
+    X_test, y_test = remove_noise_outliers(X_test, y_test)
+    X_valid, y_valid = remove_noise_outliers(X_valid, y_valid)
 
     #   3.3: Normalization (scaling)
     X_train = scale_data(X_train)
@@ -264,5 +259,32 @@ def preprocess():
     X_test.to_csv('x_test.csv', index=False)
     y_test.to_csv('y_test.csv', index=False)
 
+def preprocess_test_data():
+    label='Vote'
+    best_features = [ "Yearly_IncomeK", "Number_of_differnt_parties_voted_for",
+                      "Political_interest_Total_Score", "Avg_Satisfaction_with_previous_vote",
+                      "Avg_monthly_income_all_years", "Most_Important_Issue",
+                      "Overall_happiness_score", "Avg_size_per_room", "Weighted_education_rank"]
+    #   1: Load data
+    elections_df = read_csv("ElectionsData_Pred_Features.csv", header=0, index_col=0)
+    ## labeled samples only
+    set_types(elections_df)
+    #   2: Set the correct type of each attribute
+    X = elections_df[best_features]
+
+    print(X.dtypes)
+    #   3: Data preparation
+    #   3.1 Imputing
+    X = closet_fit(X)
+    X = categorical_to_numerical(X, None)
+    #   3.2: Data Cleansing
+    X, _ = remove_noise_outliers(X, None)
+    #   3.3: Normalization (scaling)
+    X = scale_data(X)
+
+    print(X)
+    return X
+
 if __name__ == '__main__':
-    preprocess()
+    #preprocess_training_data()
+    preprocess_test_data()
