@@ -96,9 +96,9 @@ def predict_division_of_voters():
     #cross_validation_acc_score(x, y, svm_poly_clf)
     #cross_validation_acc_score(x, y, adabboost_svm_linear_clf)
     # evaluate and plot confusion matrices
-    performance_data = [('Random Forest', prediction_rand_forest, y_test),
-                        ('AdaBoost SVM Linear Kernel', prediction_adaboost_linear, y_test),
-                        ('AdaBoost SVM Polinomial Kernel', prediction_svm_poly, y_test)
+    performance_data = [('Random Forest', prediction_rand_forest, y_valid),
+                        ('AdaBoost SVM Linear Kernel', prediction_adaboost_linear, y_valid),
+                        ('AdaBoost SVM Polinomial Kernel', prediction_svm_poly, y_valid)
                         ]
     print_accuracy_scores(performance_data)
     print_f1_score(performance_data)
