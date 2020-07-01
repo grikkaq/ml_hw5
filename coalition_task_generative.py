@@ -17,6 +17,12 @@ from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import GridSearchCV
 from itertools import chain, combinations
+from sklearn.ensemble import StackingClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.svm import SVC
+from sklearn.linear_model import Perceptron
+from sklearn.neural_network import MLPClassifier
 LABEL='Vote'
 
 
@@ -37,7 +43,7 @@ def load_data():
     x_test, y_test = __load_data('test')
     return x_train, y_train, x_val, y_val, x_test, y_test
 
-
+"""
 def cross_validation_acc_score(x, y, clf):
     skfold = StratifiedKFold(n_splits=10).split(x, y)
     score = cross_val_score(clf, x, y, cv=skfold)
@@ -62,7 +68,7 @@ def get_lda_best_params():
     }
     res = grid_search_cross_validation(x_train, y_train, grid, LinearDiscriminantAnalysis())
     print(res)
-
+"""
 def print_accuracy_scores(performance_data):
     print('Accuracy scores:')
     for i, data in enumerate(performance_data):
@@ -81,7 +87,7 @@ def print_f1_score(performance_data):
         acc = metrics.f1_score(y_true=pred, y_pred=test, average='macro')
         print(model_name + ' f1 score: ', acc)
 
-
+"""
 def find_model():
     x_train, y_train, x_val, y_val, x_test, y_test = load_data()
     # all_df = pd.concat([train_df, validation_df, test_df])
@@ -107,17 +113,24 @@ def find_model():
     print_accuracy_scores(performance_data)
     print_accuracy_scores(performance_data)
 
-
+"""
 def find_steady_coalition():
     x_train, y_train, x_val, y_val, x_test, y_test = load_data()
 
     # trying to implement LDA with Least Squares solver
     #clf = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto', store_covariance=True)
-    clf = RandomForestClassifier(criterion='gini', max_depth=50, min_samples_split=5, n_estimators=50)
+    #clf = RandomForestClassifier(criterion='gini', max_depth=50, min_samples_split=5, n_estimators=50)
+    estimators = [
+        ('Random Forest',  RandomForestClassifier(criterion='gini', max_depth=50, min_samples_split=5, n_estimators=50)),
+        ('SVC', SVC(kernel='poly', degree=4, probability=True)),
+        ('Percepton', MLPClassifier(activation="relu", alpha=0.1, hidden_layer_sizes=(10, 10, 10),
+                                   learning_rate="constant", max_iter=2000))
+    ]
+    clf = StackingClassifier(estimators)
     clf.fit(x_train, y_train)
     parties_list = np.unique(y_train.values)
     feature_to_index_map = {clf.classes_[i]: i for i in range(len(clf.classes_))}
-    # prediction
+
     probabilities_per_voter = clf.predict_proba(x_val)
 
     best_coalition = []
@@ -135,14 +148,11 @@ def find_steady_coalition():
             continue
 
         voters_likely_to_vote = [ voter > 0.5 for voter in probabilities_coalition ]
-        standart_deviation = np.std(probabilities_coalition)
-        val_predict_score = np.mean(voters_likely_to_vote)
         v_score = v_measure_score(y_coalition, voters_likely_to_vote)
         homo_score = homogeneity_score(y_coalition, voters_likely_to_vote)
         #print('Homogeneity score: {} \nV-Measure score: {} '.format(homo_score, v_score))
         #print('Predicition mean {} and std {}'.format(val_predict_score, standart_deviation))
 
-        #if v_score > best_coalition_v_score:
         if v_score > best_coalition_v_score:
             best_coalition = possible_coalition
             best_coalition_v_score = homo_score
@@ -154,21 +164,16 @@ def find_steady_coalition():
                                              len(y_val) - np.sum(voters_likely_to_vote)))
 
     #lda_tst = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto', store_covariance=True)
-    random_forest = RandomForestClassifier(criterion='gini', max_depth=50, min_samples_split=5, n_estimators=50)
-    print('Test: ', end='')
-    random_forest.fit(x_train, y_train)
+    prediction = clf.predict(x_test)
 
-    prediction_random_forest = random_forest.predict(x_val)
-
-    performance_data = [('Random Forest', prediction_random_forest, y_val)]
+    performance_data = [('Random Forest + SVC + Neueron Network stacking method', prediction, y_test)]
     print_accuracy_scores(performance_data)
-    print_accuracy_scores(performance_data)
+    print_f1_score(performance_data)
     #plot_coalition(x_val, y_val, best_coalition, title='Coalition [LDA]')
 
 
 
 if __name__ == '__main__':
-    #select_params_Gaussian_mixture()
     #get_lda_best_params()
     #find_model()
     find_steady_coalition()
